@@ -257,7 +257,7 @@ def create_app():
     except ImportError as e:
         logging.warning(f"SSO functionality not available: {e}")
     app.include_router(config_router, prefix="/api/config", tags=["config"])
-    app.include_router(media_router, prefix="/api/media-servers", tags=["media-servers"])
+    app.include_router(media_router, prefix="/api/config/media-servers", tags=["media-servers"])
     app.include_router(search_router, prefix="/api/search", tags=["search"])
     app.include_router(
         credentials_router, prefix="/api/credentials", tags=["credentials"]
