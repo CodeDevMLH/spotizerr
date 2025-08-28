@@ -63,6 +63,13 @@ export type FlatAppSettings = {
 	artistSeparator: string;
 	spotifyMetadata: boolean;
 	realTimeMultiplier: number;
+	mediaServers?: {
+		triggerOnQueueEmpty: boolean;
+		intervalEnabled: boolean;
+		intervalSeconds: number;
+		jellyfin: { enabled: boolean; url: string; apiKey: string };
+		plex: { enabled: boolean; url: string; apiKey: string; librarySectionIds: string };
+	};
 };
 
 const defaultSettings: FlatAppSettings = {
@@ -107,6 +114,13 @@ const defaultSettings: FlatAppSettings = {
 		watchedArtistAlbumGroup: ["album", "single"],
 	},
 	realTimeMultiplier: 0,
+	mediaServers: {
+		triggerOnQueueEmpty: false,
+		intervalEnabled: false,
+		intervalSeconds: 3600,
+		jellyfin: { enabled: false, url: "", apiKey: "" },
+		plex: { enabled: false, url: "", apiKey: "", librarySectionIds: "" },
+	},
 };
 
 interface FetchedCamelCaseSettings {

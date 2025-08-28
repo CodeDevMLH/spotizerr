@@ -12,6 +12,7 @@ const FormattingTab = lazy(() => import("../components/config/FormattingTab").th
 const AccountsTab = lazy(() => import("../components/config/AccountsTab").then(m => ({ default: m.AccountsTab })));
 const WatchTab = lazy(() => import("../components/config/WatchTab").then(m => ({ default: m.WatchTab })));
 const ServerTab = lazy(() => import("../components/config/ServerTab").then(m => ({ default: m.ServerTab })));
+const MediaServersTab = lazy(() => import("../components/config/MediaServersTab").then(m => ({ default: m.MediaServersTab })));
 const UserManagementTab = lazy(() => import("../components/config/UserManagementTab").then(m => ({ default: m.UserManagementTab })));
 const ProfileTab = lazy(() => import("../components/config/ProfileTab").then(m => ({ default: m.ProfileTab })));
 
@@ -66,7 +67,7 @@ const ConfigComponent = () => {
       if (!authEnabled && (activeTab === "user-management" || activeTab === "profile")) {
         return true;
       }
-      if (authEnabled && user?.role !== "admin" && ["user-management", "general", "downloads", "formatting", "accounts", "watch", "server"].includes(activeTab)) {
+      if (authEnabled && user?.role !== "admin" && ["user-management", "general", "downloads", "formatting", "accounts", "watch", "media-servers", "server"].includes(activeTab)) {
         return true;
       }
       return false;
@@ -163,6 +164,12 @@ const ConfigComponent = () => {
             <WatchTab />
           </Suspense>
         );
+      case "media-servers":
+        return (
+          <Suspense fallback={<TabLoading />}>
+            <MediaServersTab />
+          </Suspense>
+        );
       case "server":
         return (
           <Suspense fallback={<TabLoading />}>
@@ -240,6 +247,12 @@ const ConfigComponent = () => {
                   className={`px-4 py-3 rounded-lg text-left transition-all whitespace-nowrap ${activeTab === "watch" ? "bg-surface-accent dark:bg-surface-accent-dark font-semibold text-content-primary dark:text-content-primary-dark shadow-sm" : "text-content-secondary dark:text-content-secondary-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark hover:text-content-primary dark:hover:text-content-primary-dark"}`}
                 >
                   Watch
+                </button>
+                <button
+                  onClick={() => handleTabChange("media-servers")}
+                  className={`px-4 py-3 rounded-lg text-left transition-all whitespace-nowrap ${activeTab === "media-servers" ? "bg-surface-accent dark:bg-surface-accent-dark font-semibold text-content-primary dark:text-content-primary-dark shadow-sm" : "text-content-secondary dark:text-content-secondary-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark hover:text-content-primary dark:hover:text-content-primary-dark"}`}
+                >
+                  Media Servers
                 </button>
                 <button
                   onClick={() => handleTabChange("server")}

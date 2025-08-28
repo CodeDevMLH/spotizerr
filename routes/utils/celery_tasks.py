@@ -31,6 +31,12 @@ from routes.utils.watch.db import (
 # Import for download history management
 from routes.utils.history_manager import history_manager
 
+# Import media server trigger function, if available
+try:
+    from routes.system.media_servers import trigger_scan_if_queue_empty
+except Exception:
+    trigger_scan_if_queue_empty = None
+
 # Create Redis connection for storing task data that's not part of the Celery result backend
 import redis
 
@@ -2071,3 +2077,52 @@ def _extract_initial_parent_object(log_lines: list, parent_type: str) -> dict | 
         if key in obj and isinstance(obj[key], dict):
             return obj[key]
     return None
+
+
+# Media server queue-empty trigger task
+@celery_app.task(
+    name="routes.utils.celery_tasks.trigger_media_scan_if_queue_empty",
+    queue="utility_tasks",
+    ignore_result=True,
+)
+def trigger_media_scan_if_queue_empty():
+    try:
+        if trigger_scan_if_queue_empty:
+            import asyncio
+
+            asyncio.run(trigger_scan_if_queue_empty())
+    except Exception as e:
+        logger.debug(f"Media server queue-empty trigger failed: {e}")
+
+
+_last_media_interval_trigger = 0
+
+
+@celery_app.task(
+    name="routes.utils.celery_tasks.media_server_interval_check",
+    queue="utility_tasks",
+    ignore_result=True,
+)
+def media_server_interval_check():
+    """Runs every minute; triggers scan if intervalEnabled and enough time elapsed."""
+    global _last_media_interval_trigger
+    try:
+        cfg = get_config_params()
+        ms = cfg.get("mediaServers") or {}
+        if not ms.get("intervalEnabled"):
+            return
+        interval = int(ms.get("intervalSeconds", 3600))
+        if interval < 60:
+            interval = 60
+        now = time.time()
+        if (now - _last_media_interval_trigger) < interval:
+            return
+        # Update timestamp early to avoid duplicate triggers under race
+        _last_media_interval_trigger = now
+        if trigger_scan_if_queue_empty:
+            import asyncio
+
+            # Reuse same trigger function (it respects triggerOnQueueEmpty internally)
+            asyncio.run(trigger_scan_if_queue_empty())
+    except Exception as e:
+        logger.debug(f"Media server interval check failed: {e}")

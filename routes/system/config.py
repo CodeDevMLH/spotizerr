@@ -39,6 +39,24 @@ NOTIFY_PARAMETERS = [
     "deezerQuality",
 ]
 
+# Default media server config (mirrors DEFAULT_MAIN_CONFIG addition)
+DEFAULT_MEDIA_SERVER_CONFIG = {
+    "triggerOnQueueEmpty": False,
+    "intervalEnabled": False,
+    "intervalSeconds": 3600,
+    "jellyfin": {
+        "enabled": False,
+        "url": "",
+        "apiKey": ""
+    },
+    "plex": {
+        "enabled": False,
+        "url": "",
+        "apiKey": "",
+        "librarySectionIds": "",
+    },
+}
+
 
 # Helper function to check if credentials exist for a service
 def has_credentials(service: str) -> bool:
@@ -202,6 +220,10 @@ def _migrate_legacy_keys_inplace(cfg: dict) -> bool:
     if "watch" not in cfg or not isinstance(cfg.get("watch"), dict):
         cfg["watch"] = DEFAULT_WATCH_CONFIG.copy()
         modified = True
+    # Ensure mediaServers block exists
+    if "mediaServers" not in cfg or not isinstance(cfg.get("mediaServers"), dict):
+        cfg["mediaServers"] = DEFAULT_MEDIA_SERVER_CONFIG.copy()
+        modified = True
     return modified
 
 
@@ -229,6 +251,21 @@ def save_config(config_data):
         for default_key, default_value in DEFAULT_MAIN_CONFIG.items():
             if default_key not in existing_config:
                 existing_config[default_key] = default_value
+
+        # Ensure mediaServers subdefaults
+        ms_cfg = existing_config.get("mediaServers") or {}
+        for k, v in DEFAULT_MEDIA_SERVER_CONFIG.items():
+            if k not in ms_cfg:
+                ms_cfg[k] = v
+        # Nested defaults
+        for sub in ("jellyfin", "plex"):
+            if sub not in ms_cfg or not isinstance(ms_cfg[sub], dict):
+                ms_cfg[sub] = DEFAULT_MEDIA_SERVER_CONFIG[sub].copy()
+            else:
+                for sk, sv in DEFAULT_MEDIA_SERVER_CONFIG[sub].items():
+                    if sk not in ms_cfg[sub]:
+                        ms_cfg[sub][sk] = sv
+        existing_config["mediaServers"] = ms_cfg
 
         with open(MAIN_CONFIG_FILE_PATH, "w") as f:
             json.dump(existing_config, f, indent=4)

@@ -236,6 +236,7 @@ def create_app():
     # Register routers with URL prefixes
     from routes.auth.auth import router as auth_router
     from routes.system.config import router as config_router
+    from routes.system.media_servers import router as media_router
     from routes.core.search import router as search_router
     from routes.auth.credentials import router as credentials_router
     from routes.content.album import router as album_router
@@ -256,6 +257,7 @@ def create_app():
     except ImportError as e:
         logging.warning(f"SSO functionality not available: {e}")
     app.include_router(config_router, prefix="/api/config", tags=["config"])
+    app.include_router(media_router, prefix="/api/media-servers", tags=["media-servers"])
     app.include_router(search_router, prefix="/api/search", tags=["search"])
     app.include_router(
         credentials_router, prefix="/api/credentials", tags=["credentials"]

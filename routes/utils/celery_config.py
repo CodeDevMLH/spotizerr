@@ -52,6 +52,23 @@ DEFAULT_MAIN_CONFIG = {
     "watch": {},
     "realTimeMultiplier": 0,
     "padNumberWidth": 3,
+    # New media server integration (Jellyfin / Plex)
+    "mediaServers": {
+        "triggerOnQueueEmpty": False,
+        "intervalEnabled": False,
+        "intervalSeconds": 3600,
+        "jellyfin": {
+            "enabled": False,
+            "url": "",
+            "apiKey": "",
+        },
+        "plex": {
+            "enabled": False,
+            "url": "",
+            "apiKey": "",  # Plex token
+            "librarySectionIds": "",  # Comma-separated section IDs
+        },
+    },
 }
 
 
@@ -232,5 +249,9 @@ beat_schedule = {
     "cleanup-old-tasks": {
         "task": "routes.utils.celery_tasks.cleanup_old_tasks",
         "schedule": 3600.0,  # Run every hour
+    },
+    "media-server-interval-check": {
+        "task": "routes.utils.celery_tasks.media_server_interval_check",
+        "schedule": 60.0,  # Every minute check if time to trigger scan
     },
 }
