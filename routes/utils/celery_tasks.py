@@ -1479,18 +1479,37 @@ def task_postrun_handler(
     except Exception as e:
         logger.error(f"Error in task_postrun_handler: {e}", exc_info=True)
     finally:
-        # After any task finishes, optionally schedule a media server scan check.
+        # After any task finishes: only enqueue media server scan if queue is empty
         try:
             cfg = get_config_params()
             ms = cfg.get("mediaServers") or {}
-            if ms.get("triggerOnQueueEmpty"):
-                # Fire-and-forget; the task internally re-checks conditions
-                celery_app.send_task(
-                    "routes.utils.celery_tasks.trigger_media_scan_if_queue_empty",
-                    queue="utility_tasks",
-                )
+            if not ms.get("triggerOnQueueEmpty"):
+                return
+            # check active tasks
+            active = False
+            terminal = {
+                ProgressState.COMPLETE,
+                ProgressState.ERROR,
+                ProgressState.CANCELLED,
+                "ERROR_RETRIED",
+                "ERROR_AUTO_CLEANED",
+                "done",
+            }
+            for t in get_all_tasks():
+                if t.get("status") not in terminal:
+                    active = True
+                    break
+            if active:
+                return
+            # queue empty, trigger scan via a Redis lock to prevent multiple triggers
+            guard_key = "media_scan:empty_schedule_guard"
+            if not redis_client.set(guard_key, str(time.time()), nx=True, ex=10):
+                return
+            celery_app.send_task(
+                "routes.utils.celery_tasks.trigger_media_scan_if_queue_empty",
+                queue="utility_tasks",
+            )
         except Exception:
-            # Non-fatal; never block postrun
             pass
 
 
@@ -2095,14 +2114,45 @@ def _extract_initial_parent_object(log_lines: list, parent_type: str) -> dict | 
 )
 def trigger_media_scan_if_queue_empty():
     try:
-        # Lazy import to avoid circular dependency during module import
-        from routes.system.media_servers import (
-            trigger_scan_if_queue_empty as _trigger_scan_if_queue_empty,
-        )  # type: ignore
-        if _trigger_scan_if_queue_empty:
-            import asyncio
+        # Rate limiting + de-duplication so we don't spam scans when many tasks finish at once.
+        # Goal: at most one trigger every 30 seconds, and only one concurrent trigger.
+        GUARD_KEY = "media_scan:queue_guard"
+        LAST_SUCCESS_KEY = "media_scan:queue_last_success"
+        now = time.time()
 
-            asyncio.run(_trigger_scan_if_queue_empty())
+        # Acquire short guard (fast path exit if another trigger in progress)
+        if not redis_client.set(GUARD_KEY, str(now), nx=True, ex=5):
+            return False
+        try:
+            # Check last success timestamp
+            last_raw = redis_client.get(LAST_SUCCESS_KEY)
+            if last_raw:
+                try:
+                    last_ts = float(last_raw.decode("utf-8"))
+                except Exception:
+                    last_ts = now
+                if now - last_ts < 30:  # within rate window
+                    return False
+
+            # Lazy import inside guard to avoid circular import issues
+            from routes.system.media_servers import (
+                trigger_scan_if_queue_empty as _trigger_scan_if_queue_empty,
+            )
+            if _trigger_scan_if_queue_empty:
+                import asyncio
+
+                triggered = asyncio.run(_trigger_scan_if_queue_empty())
+                if triggered:
+                    # Store timestamp with a TTL
+                    redis_client.set(LAST_SUCCESS_KEY, str(now), ex=600)
+                return triggered
+            return False
+        finally:
+            # Release guard explicitly (ignore errors)
+            try:
+                redis_client.delete(GUARD_KEY)
+            except Exception:
+                pass
     except Exception as e:
         logger.debug(f"Media server queue-empty trigger failed: {e}")
 
