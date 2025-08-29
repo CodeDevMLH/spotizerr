@@ -136,54 +136,39 @@ async def trigger_scan(current_user: User = Depends(require_admin_from_state)):
 
 def queue_is_empty() -> bool:
     tasks = get_all_tasks()
-    # Only consider real download tasks; ignore utility / other task types
-    download_tasks = [
-        t
-        for t in tasks
-        if t.get("download_type") in {"track", "album", "playlist"}
-    ]
+    download_tasks = [t for t in tasks if t.get("download_type") in {"track", "album", "playlist"}]
     if not download_tasks:
-        # No active/persisted download tasks => treat as empty
         logger.debug("queue_is_empty: no download tasks present -> empty")
         return True
-    terminal = {
-        ProgressState.COMPLETE,
-        ProgressState.DONE,
-        ProgressState.ERROR,
-        ProgressState.CANCELLED,
-        ProgressState.SKIPPED,
-        ProgressState.ERROR_RETRIED,
-        ProgressState.ERROR_AUTO_CLEANED,
-        # String literals (defensive) for any legacy stored values
-        "done",
-        "ERROR_RETRIED",
-        "ERROR_AUTO_CLEANED",
-        "skipped",
-        "complete",
-        "cancelled",
-        "error",
+    # Active statuses (everything else counts as terminal)
+    active_statuses = {
+        ProgressState.INITIALIZING,
+        ProgressState.PROCESSING,
+        ProgressState.DOWNLOADING,
+        ProgressState.PROGRESS,
+        ProgressState.TRACK_PROGRESS,
+        ProgressState.REAL_TIME,
+        ProgressState.RETRYING,
+        ProgressState.QUEUED,
+        "pending",
     }
-    non_terminal = [t for t in download_tasks if t.get("status") not in terminal]
-    if non_terminal:
+    blocking = [t for t in download_tasks if t.get("status") in active_statuses]
+    if blocking:
         logger.debug(
-            "queue_is_empty: still non-terminal download tasks: %s",
+            "queue_is_empty: %d active download tasks remain: %s",
+            len(blocking),
             [
                 {
                     "id": t.get("task_id"),
                     "type": t.get("download_type"),
                     "status": t.get("status"),
                 }
-                for t in non_terminal
+                for t in blocking
             ],
         )
         return False
     logger.debug(
-        "queue_is_empty: all %d download tasks terminal (%s) -> empty",
-        len(download_tasks),
-        {
-            t.get("status")
-            for t in download_tasks
-        },
+        "queue_is_empty: all %d download tasks are terminal statuses -> empty", len(download_tasks)
     )
     return True
 
