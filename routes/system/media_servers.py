@@ -44,12 +44,15 @@ def _validate_media_server_config(ms_cfg: dict) -> tuple[bool, str]:
         return False, f"Validation error: {e}"
 
 
+@router.get("")
 @router.get("/")
 async def get_media_servers(current_user: User = Depends(require_admin_from_state)):
     return _get_media_server_config()
 
 
+@router.post("")
 @router.post("/")
+@router.put("")
 @router.put("/")
 async def update_media_servers(
     request: Request, current_user: User = Depends(require_admin_from_state)
