@@ -1479,52 +1479,19 @@ def task_postrun_handler(
     except Exception as e:
         logger.error(f"Error in task_postrun_handler: {e}", exc_info=True)
     finally:
-        # After any task finishes: (1) store last download completion time, (2) enqueue scan only if queue became empty AFTER a download task (not utility/maintenance tasks)
+        # After any task finishes: record completion & enqueue scan check task for download tasks (queue emptiness & rate limit handled later).
         try:
-            # Mark last completion for album/playlist/track tasks (used by interval logic)
-            try:
-                ti = get_task_info(task_id)
-                if ti.get("download_type") in ("track", "album", "playlist"):
-                    redis_client.set("media_scan:last_download_complete", str(time.time()), ex=86400)
-            except Exception:
-                pass
-
-            cfg = get_config_params()
-            ms = cfg.get("mediaServers") or {}
-            if not ms.get("triggerOnQueueEmpty"):
-                return
-            # Only act on real download tasks (avoid triggering from utility tasks like interval checks / cleanup)
-            download_task_names = {"download_track", "download_album", "download_playlist"}
-            try:
-                task_name = getattr(task, "name", None)
-                if task_name not in download_task_names:
-                    return
-            except Exception:
-                return
-            # check active tasks
-            active = False
-            terminal = {
-                ProgressState.COMPLETE,
-                ProgressState.ERROR,
-                ProgressState.CANCELLED,
-                "ERROR_RETRIED",
-                "ERROR_AUTO_CLEANED",
-                "done",
-            }
-            for t in get_all_tasks():
-                if t.get("status") not in terminal:
-                    active = True
-                    break
-            if active:
-                return
-            # queue empty, trigger scan via a Redis lock to prevent multiple triggers
-            guard_key = "media_scan:empty_schedule_guard"
-            if not redis_client.set(guard_key, str(time.time()), nx=True, ex=10):
-                return
-            celery_app.send_task(
-                "routes.utils.celery_tasks.trigger_media_scan_if_queue_empty",
-                queue="utility_tasks",
-            )
+            ti = get_task_info(task_id)
+            download_type = ti.get("download_type")
+            if download_type in ("track", "album", "playlist"):
+                redis_client.set("media_scan:last_download_complete", str(time.time()), ex=86400)
+                cfg = get_config_params()
+                ms = cfg.get("mediaServers") or {}
+                if ms.get("triggerOnQueueEmpty"):
+                    celery_app.send_task(
+                        "routes.utils.celery_tasks.trigger_media_scan_if_queue_empty",
+                        queue="utility_tasks",
+                    )
         except Exception:
             pass
 
