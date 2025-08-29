@@ -13,17 +13,17 @@ interface MediaServerConfig {
 }
 
 const fetchMediaServers = async (): Promise<MediaServerConfig> => {
-  const { data } = await authApiClient.client.get("/media-servers");
+  const { data } = await authApiClient.client.get("/config/media-servers");
   return data;
 };
 
 const saveMediaServers = async (data: Partial<MediaServerConfig>) => {
-  const { data: response } = await authApiClient.client.put("/media-servers", data);
+  const { data: response } = await authApiClient.client.put("/config/media-servers", data);
   return response;
 };
 
 const triggerScan = async () => {
-  const { data } = await authApiClient.client.post("/media-servers/scan", {});
+  const { data } = await authApiClient.client.post("/config/media-servers/scan", {});
   return data;
 };
 
@@ -39,7 +39,7 @@ export function MediaServersTab() {
     onSuccess: () => {
       toast.success("Media server settings saved");
       queryClient.invalidateQueries({ queryKey: ["mediaServers"] });
-    },
+    },  
     onError: (e: any) => toast.error(e?.response?.data?.detail || e.message || "Save failed"),
   });
 
@@ -112,7 +112,7 @@ export function MediaServersTab() {
           <input id="triggerOnQueueEmpty" type="checkbox" {...register("triggerOnQueueEmpty")} className="h-6 w-6" />
         </div>
         <div className="flex items-center justify-between">
-          <label className="text-content-primary dark:text-content-primary-dark" htmlFor="intervalEnabled">Enable Interval Scan</label>
+          <label className="text-content-primary dark:text-content-primary-dark" htmlFor="intervalEnabled">Enable Interval Scan (consider using the built-in functions in jellyfin/plex)</label>
           <input id="intervalEnabled" type="checkbox" {...register("intervalEnabled")} className="h-6 w-6" />
         </div>
         <div className="flex flex-col gap-2">
