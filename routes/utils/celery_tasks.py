@@ -1489,7 +1489,7 @@ def task_postrun_handler(
                 ms = cfg.get("mediaServers") or {}
                 if ms.get("triggerOnQueueEmpty"):
                     celery_app.send_task(
-                        "routes.utils.celery_tasks.trigger_media_scan_if_queue_empty",
+                        "trigger_media_scan_if_queue_empty",
                         queue="utility_tasks",
                     )
         except Exception:
@@ -2091,7 +2091,7 @@ def _extract_initial_parent_object(log_lines: list, parent_type: str) -> dict | 
 
 # Media server queue-empty trigger task
 @celery_app.task(
-    name="routes.utils.celery_tasks.trigger_media_scan_if_queue_empty",
+    name="trigger_media_scan_if_queue_empty",
     queue="utility_tasks",
     ignore_result=True,
 )
@@ -2165,7 +2165,7 @@ _last_media_interval_trigger = 0
 
 
 @celery_app.task(
-    name="routes.utils.celery_tasks.media_server_interval_check",
+    name="media_server_interval_check",
     queue="utility_tasks",
     ignore_result=True,
 )

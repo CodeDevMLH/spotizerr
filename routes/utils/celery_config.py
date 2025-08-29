@@ -251,7 +251,7 @@ beat_schedule = {
         "schedule": 3600.0,  # Run every hour
     },
     "media-server-interval-check": {
-        "task": "routes.utils.celery_tasks.media_server_interval_check",
+        "task": "media_server_interval_check",
         "schedule": 60.0,  # Every minute check if time to trigger scan
     },
 }
