@@ -31,12 +31,6 @@ from routes.utils.watch.db import (
 # Import for download history management
 from routes.utils.history_manager import history_manager
 
-# Import media server trigger function, if available
-try:
-    from routes.system.media_servers import trigger_scan_if_queue_empty
-except Exception:
-    trigger_scan_if_queue_empty = None
-
 # Create Redis connection for storing task data that's not part of the Celery result backend
 import redis
 
@@ -2087,10 +2081,14 @@ def _extract_initial_parent_object(log_lines: list, parent_type: str) -> dict | 
 )
 def trigger_media_scan_if_queue_empty():
     try:
-        if trigger_scan_if_queue_empty:
+        # Lazy import to avoid circular dependency during module import
+        from routes.system.media_servers import (
+            trigger_scan_if_queue_empty as _trigger_scan_if_queue_empty,
+        )  # type: ignore
+        if _trigger_scan_if_queue_empty:
             import asyncio
 
-            asyncio.run(trigger_scan_if_queue_empty())
+            asyncio.run(_trigger_scan_if_queue_empty())
     except Exception as e:
         logger.debug(f"Media server queue-empty trigger failed: {e}")
 
@@ -2119,10 +2117,13 @@ def media_server_interval_check():
             return
         # Update timestamp early to avoid duplicate triggers under race
         _last_media_interval_trigger = now
-        if trigger_scan_if_queue_empty:
+        # Lazy import each run; cheap and avoids circular import
+        from routes.system.media_servers import (
+            trigger_scan_if_queue_empty as _trigger_scan_if_queue_empty,
+        )  # type: ignore
+        if _trigger_scan_if_queue_empty:
             import asyncio
 
-            # Reuse same trigger function (it respects triggerOnQueueEmpty internally)
-            asyncio.run(trigger_scan_if_queue_empty())
+            asyncio.run(_trigger_scan_if_queue_empty())
     except Exception as e:
         logger.debug(f"Media server interval check failed: {e}")
