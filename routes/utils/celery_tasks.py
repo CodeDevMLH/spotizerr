@@ -1479,8 +1479,16 @@ def task_postrun_handler(
     except Exception as e:
         logger.error(f"Error in task_postrun_handler: {e}", exc_info=True)
     finally:
-        # After any task finishes: only enqueue media server scan if queue is empty
+        # After any task finishes: (1) store last download completion time, (2) enqueue scan only if queue became empty
         try:
+            # Mark last completion for album/playlist/track tasks (used by interval logic)
+            try:
+                ti = get_task_info(task_id)
+                if ti.get("download_type") in ("track", "album", "playlist"):
+                    redis_client.set("media_scan:last_download_complete", str(time.time()), ex=86400)
+            except Exception:
+                pass
+
             cfg = get_config_params()
             ms = cfg.get("mediaServers") or {}
             if not ms.get("triggerOnQueueEmpty"):
@@ -2145,6 +2153,19 @@ def trigger_media_scan_if_queue_empty():
                 if triggered:
                     # Store timestamp with a TTL
                     redis_client.set(LAST_SUCCESS_KEY, str(now), ex=600)
+                    try:
+                        redis_client.publish(
+                            "sse_events",
+                            json.dumps(
+                                {
+                                    "event_type": "media_scan",
+                                    "reason": "queue_empty",
+                                    "timestamp": now,
+                                }
+                            ),
+                        )
+                    except Exception:
+                        pass
                 return triggered
             return False
         finally:
@@ -2181,13 +2202,42 @@ def media_server_interval_check():
             return
         # Update timestamp early to avoid duplicate triggers under race
         _last_media_interval_trigger = now
-        # Lazy import each run; cheap and avoids circular import
+        # Skip if no new downloads since last queue-empty success
+        last_dl_raw = redis_client.get("media_scan:last_download_complete")
+        if not last_dl_raw:
+            return
+        try:
+            last_dl = float(last_dl_raw.decode("utf-8"))
+        except Exception:
+            last_dl = 0
+        last_success = 0
+        last_success_raw = redis_client.get("media_scan:queue_last_success")
+        if last_success_raw:
+            try:
+                last_success = float(last_success_raw.decode("utf-8"))
+            except Exception:
+                last_success = 0
+        if last_success >= last_dl:
+            return  # nothing new since last successful scan
         from routes.system.media_servers import (
             trigger_scan_if_queue_empty as _trigger_scan_if_queue_empty,
         )  # type: ignore
         if _trigger_scan_if_queue_empty:
             import asyncio
-
-            asyncio.run(_trigger_scan_if_queue_empty())
+            triggered = asyncio.run(_trigger_scan_if_queue_empty())
+            if triggered:
+                try:
+                    redis_client.publish(
+                        "sse_events",
+                        json.dumps(
+                            {
+                                "event_type": "media_scan",
+                                "reason": "interval",
+                                "timestamp": time.time(),
+                            }
+                        ),
+                    )
+                except Exception:
+                    pass
     except Exception as e:
         logger.debug(f"Media server interval check failed: {e}")
