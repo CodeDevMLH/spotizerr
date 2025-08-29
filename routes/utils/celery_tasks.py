@@ -2113,7 +2113,7 @@ def trigger_media_scan_if_queue_empty():
         now = time.time()
         if not redis_client.set(GUARD_KEY, str(now), nx=True, ex=5):
             logger.debug("media scan trigger: guard locked (another in progress)")
-            return False
+            return {"triggered": False, "reason": "guard_locked"}
         try:
             last_raw = redis_client.get(LAST_SUCCESS_KEY)
             if last_raw:
@@ -2126,20 +2126,42 @@ def trigger_media_scan_if_queue_empty():
                         "media scan trigger skipped (fixed cooldown %.1fs remaining)",
                         FIXED_COOLDOWN - (now - last_ts),
                     )
-                    return False
+                    return {"triggered": False, "reason": "cooldown"}
             from routes.system.media_servers import (
                 trigger_scan_if_queue_empty as _trigger_scan_if_queue_empty,
+                queue_is_empty as _queue_is_empty,
+                _get_media_server_config as _get_ms_cfg,
             )
+            ms_cfg = _get_ms_cfg()
+            if not ms_cfg.get("triggerOnQueueEmpty"):
+                logger.debug("media scan trigger: disabled in config")
+                return {"triggered": False, "reason": "disabled"}
+            if not _queue_is_empty():
+                logger.debug("media scan trigger: queue not empty")
+                return {"triggered": False, "reason": "queue_not_empty"}
             if _trigger_scan_if_queue_empty:
                 import asyncio
-                triggered = asyncio.run(_trigger_scan_if_queue_empty())
+                try:
+                    triggered = asyncio.run(_trigger_scan_if_queue_empty())
+                except Exception as e:
+                    logger.warning(
+                        f"media scan trigger: exception inside trigger_scan_if_queue_empty {e}"
+                    )
+                    return {"triggered": False, "reason": "exception"}
                 if triggered:
                     redis_client.set(LAST_SUCCESS_KEY, str(now), ex=600)
+                    return {"triggered": True, "reason": "ok"}
+                logger.debug("media scan trigger: trigger_scan_if_queue_empty returned False")
+                # Derive refined reason after False
+                if not ms_cfg.get("triggerOnQueueEmpty"):
+                    r = "disabled"
+                elif not _queue_is_empty():
+                    r = "queue_not_empty"
                 else:
-                    logger.debug("media scan trigger: queue empty path returned False")
-                return triggered
+                    r = "unknown"
+                return {"triggered": False, "reason": r}
             logger.debug("media scan trigger: function not available")
-            return False
+            return {"triggered": False, "reason": "function_missing"}
         finally:
             try:
                 redis_client.delete(GUARD_KEY)
@@ -2147,6 +2169,7 @@ def trigger_media_scan_if_queue_empty():
                 pass
     except Exception as e:
         logger.debug(f"Media server queue-empty trigger failed: {e}")
+        return {"triggered": False, "reason": "fatal_exception"}
 
 
 _last_media_interval_trigger = 0
