@@ -249,12 +249,6 @@ const ConfigComponent = () => {
                   Watch
                 </button>
                 <button
-                  onClick={() => handleTabChange("media-servers")}
-                  className={`px-4 py-3 rounded-lg text-left transition-all whitespace-nowrap ${activeTab === "media-servers" ? "bg-surface-accent dark:bg-surface-accent-dark font-semibold text-content-primary dark:text-content-primary-dark shadow-sm" : "text-content-secondary dark:text-content-secondary-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark hover:text-content-primary dark:hover:text-content-primary-dark"}`}
-                >
-                  Media Servers
-                </button>
-                <button
                   onClick={() => handleTabChange("server")}
                   className={`px-4 py-3 rounded-lg text-left transition-all whitespace-nowrap ${activeTab === "server" ? "bg-surface-accent dark:bg-surface-accent-dark font-semibold text-content-primary dark:text-content-primary-dark shadow-sm" : "text-content-secondary dark:text-content-secondary-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark hover:text-content-primary dark:hover:text-content-primary-dark"}`}
                 >
@@ -270,6 +264,15 @@ const ConfigComponent = () => {
                 className={`px-4 py-3 rounded-lg text-left transition-all whitespace-nowrap ${activeTab === "user-management" ? "bg-surface-accent dark:bg-surface-accent-dark font-semibold text-content-primary dark:text-content-primary-dark shadow-sm" : "text-content-secondary dark:text-content-secondary-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark hover:text-content-primary dark:hover:text-content-primary-dark"}`}
               >
                 User Management
+              </button>
+            )}
+            {/* Media Servers moved to last position */}
+            {canAccessAdminTabs && (
+              <button
+                onClick={() => handleTabChange("media-servers")}
+                className={`px-4 py-3 rounded-lg text-left transition-all whitespace-nowrap ${activeTab === "media-servers" ? "bg-surface-accent dark:bg-surface-accent-dark font-semibold text-content-primary dark:text-content-primary-dark shadow-sm" : "text-content-secondary dark:text-content-secondary-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark hover:text-content-primary dark:hover:text-content-primary-dark"}`}
+              >
+                Media Servers
               </button>
             )}
           </nav>
