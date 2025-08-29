@@ -6,7 +6,7 @@ import httpx
 
 from routes.auth.middleware import require_admin_from_state, User
 from routes.system.config import get_config, save_config, DEFAULT_MEDIA_SERVER_CONFIG
-from routes.utils.celery_tasks import get_all_tasks, ProgressState
+from routes.utils.celery_tasks import get_all_tasks, ProgressState, redis_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -185,11 +185,26 @@ async def trigger_scan_if_queue_empty():
             "trigger_scan_if_queue_empty: queue not empty (download tasks still active)"
         )
         return False
+    # Global scan lock to avoid duplicate scans when multiple triggers race
+    SCAN_LOCK_KEY = "media_scan:scan_in_progress"
+    try:
+        if not redis_client.set(SCAN_LOCK_KEY, str(time.time()), nx=True, ex=300):
+            logger.debug("trigger_scan_if_queue_empty: scan lock already held -> skip")
+            return False
+    except Exception as e:
+        logger.debug(f"trigger_scan_if_queue_empty: failed to acquire scan lock ({e}), proceeding anyway")
+        SCAN_LOCK_KEY = None  # Don't attempt delete later
     try:
         await _trigger_jellyfin_scan(ms_cfg)
         await _trigger_plex_scan(ms_cfg)
-        logger.info("Triggered media server scan because queue is empty")
+        logger.info("Triggered media server scan because queue is empty (scan lock held)")
         return True
     except Exception as e:
         logger.warning(f"Queue-empty scan trigger failed: {e}")
         return False
+    finally:
+        if SCAN_LOCK_KEY:
+            try:
+                redis_client.delete(SCAN_LOCK_KEY)
+            except Exception:
+                pass
