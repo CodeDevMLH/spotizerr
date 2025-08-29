@@ -113,8 +113,8 @@ export function MediaServersTab() {
         </div>
         <div className="flex items-center justify-between">
           <label className="text-content-primary dark:text-content-primary-dark" htmlFor="intervalEnabled">Enable Interval Scan</label>
-          <p className="text-xs text-content-muted dark:text-content-muted-dark">Consider using the built-in functions in jellyfin/plex</p>
           <input id="intervalEnabled" type="checkbox" {...register("intervalEnabled")} className="h-6 w-6" />
+          <p className="text-xs text-content-muted dark:text-content-muted-dark">Consider using the built-in functions in jellyfin/plex</p>
         </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="intervalSeconds" className="text-content-primary dark:text-content-primary-dark">Interval (seconds)</label>
