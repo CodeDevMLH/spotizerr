@@ -136,25 +136,69 @@ async def trigger_scan(current_user: User = Depends(require_admin_from_state)):
 
 def queue_is_empty() -> bool:
     tasks = get_all_tasks()
+    # Only consider real download tasks; ignore utility / other task types
+    download_tasks = [
+        t
+        for t in tasks
+        if t.get("download_type") in {"track", "album", "playlist"}
+    ]
+    if not download_tasks:
+        # No active/persisted download tasks => treat as empty
+        logger.debug("queue_is_empty: no download tasks present -> empty")
+        return True
     terminal = {
         ProgressState.COMPLETE,
+        ProgressState.DONE,
         ProgressState.ERROR,
         ProgressState.CANCELLED,
+        ProgressState.SKIPPED,
+        ProgressState.ERROR_RETRIED,
+        ProgressState.ERROR_AUTO_CLEANED,
+        # String literals (defensive) for any legacy stored values
         "done",
         "ERROR_RETRIED",
         "ERROR_AUTO_CLEANED",
+        "skipped",
+        "complete",
+        "cancelled",
+        "error",
     }
-    for t in tasks:
-        if t.get("status") not in terminal:
-            return False
+    non_terminal = [t for t in download_tasks if t.get("status") not in terminal]
+    if non_terminal:
+        logger.debug(
+            "queue_is_empty: still non-terminal download tasks: %s",
+            [
+                {
+                    "id": t.get("task_id"),
+                    "type": t.get("download_type"),
+                    "status": t.get("status"),
+                }
+                for t in non_terminal
+            ],
+        )
+        return False
+    logger.debug(
+        "queue_is_empty: all %d download tasks terminal (%s) -> empty",
+        len(download_tasks),
+        {
+            t.get("status")
+            for t in download_tasks
+        },
+    )
     return True
 
 
 async def trigger_scan_if_queue_empty():
     ms_cfg = _get_media_server_config()
     if not ms_cfg.get("triggerOnQueueEmpty"):
+        logger.debug(
+            "trigger_scan_if_queue_empty: triggerOnQueueEmpty disabled in config"
+        )
         return False
     if not queue_is_empty():
+        logger.debug(
+            "trigger_scan_if_queue_empty: queue not empty (download tasks still active)"
+        )
         return False
     try:
         await _trigger_jellyfin_scan(ms_cfg)
