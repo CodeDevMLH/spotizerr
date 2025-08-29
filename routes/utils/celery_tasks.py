@@ -1478,6 +1478,20 @@ def task_postrun_handler(
 
     except Exception as e:
         logger.error(f"Error in task_postrun_handler: {e}", exc_info=True)
+    finally:
+        # After any task finishes, optionally schedule a media server scan check.
+        try:
+            cfg = get_config_params()
+            ms = cfg.get("mediaServers") or {}
+            if ms.get("triggerOnQueueEmpty"):
+                # Fire-and-forget; the task internally re-checks conditions
+                celery_app.send_task(
+                    "routes.utils.celery_tasks.trigger_media_scan_if_queue_empty",
+                    queue="utility_tasks",
+                )
+        except Exception:
+            # Non-fatal; never block postrun
+            pass
 
 
 @task_failure.connect
