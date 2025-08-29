@@ -136,8 +136,16 @@ async def trigger_scan(current_user: User = Depends(require_admin_from_state)):
 
 def queue_is_empty() -> bool:
     tasks = get_all_tasks()
+    terminal = {
+        ProgressState.COMPLETE,
+        ProgressState.ERROR,
+        ProgressState.CANCELLED,
+        "done",
+        "ERROR_RETRIED",
+        "ERROR_AUTO_CLEANED",
+    }
     for t in tasks:
-        if t.get("status") not in (ProgressState.COMPLETE, ProgressState.ERROR, ProgressState.CANCELLED):
+        if t.get("status") not in terminal:
             return False
     return True
 
