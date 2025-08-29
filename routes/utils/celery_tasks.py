@@ -1492,6 +1492,16 @@ def task_postrun_handler(
                         "routes.utils.celery_tasks.trigger_media_scan_if_queue_empty",
                         queue="utility_tasks",
                     )
+                    try:
+                        from routes.system.media_servers import (
+                            queue_is_empty as _queue_is_empty,
+                            trigger_scan_if_queue_empty as _trigger_scan_if_queue_empty,
+                        )
+                        if _queue_is_empty():
+                            import asyncio
+                            asyncio.run(_trigger_scan_if_queue_empty())
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -2097,41 +2107,40 @@ def _extract_initial_parent_object(log_lines: list, parent_type: str) -> dict | 
 )
 def trigger_media_scan_if_queue_empty():
     try:
-        # Rate limiting + de-duplication so we don't spam scans when many tasks finish at once.
-        # Goal: at most one trigger every 30 seconds, and only one concurrent trigger.
+        FIXED_COOLDOWN = 30  # seconds
         GUARD_KEY = "media_scan:queue_guard"
         LAST_SUCCESS_KEY = "media_scan:queue_last_success"
         now = time.time()
-
-        # Acquire short guard (fast path exit if another trigger in progress)
         if not redis_client.set(GUARD_KEY, str(now), nx=True, ex=5):
+            logger.debug("media scan trigger: guard locked (another in progress)")
             return False
         try:
-            # Check last success timestamp
             last_raw = redis_client.get(LAST_SUCCESS_KEY)
             if last_raw:
                 try:
                     last_ts = float(last_raw.decode("utf-8"))
                 except Exception:
-                    last_ts = now
-                if now - last_ts < 30:  # within rate window
+                    last_ts = 0
+                if now - last_ts < FIXED_COOLDOWN:
+                    logger.debug(
+                        "media scan trigger skipped (fixed cooldown %.1fs remaining)",
+                        FIXED_COOLDOWN - (now - last_ts),
+                    )
                     return False
-
-            # Lazy import inside guard to avoid circular import issues
             from routes.system.media_servers import (
                 trigger_scan_if_queue_empty as _trigger_scan_if_queue_empty,
             )
             if _trigger_scan_if_queue_empty:
                 import asyncio
-
                 triggered = asyncio.run(_trigger_scan_if_queue_empty())
                 if triggered:
-                    # Store timestamp with a TTL
                     redis_client.set(LAST_SUCCESS_KEY, str(now), ex=600)
+                else:
+                    logger.debug("media scan trigger: queue empty path returned False")
                 return triggered
+            logger.debug("media scan trigger: function not available")
             return False
         finally:
-            # Release guard explicitly (ignore errors)
             try:
                 redis_client.delete(GUARD_KEY)
             except Exception:
