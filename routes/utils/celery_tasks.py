@@ -2203,10 +2203,18 @@ def media_server_interval_check():
         if last_success >= last_dl:
             return  # nothing new since last successful scan
         from routes.system.media_servers import (
-            trigger_scan_if_queue_empty as _trigger_scan_if_queue_empty,
-        )  # type: ignore
-        if _trigger_scan_if_queue_empty:
+            trigger_interval_scan as _trigger_interval_scan,
+        )
+        if _trigger_interval_scan:
             import asyncio
-            asyncio.run(_trigger_scan_if_queue_empty())
+            try:
+                triggered = asyncio.run(_trigger_interval_scan())
+                if triggered:
+                    redis_client.set("media_scan:queue_last_success", str(time.time()), ex=600)
+                    logger.debug("media_server_interval_check: scan triggered (interval)")
+                else:
+                    logger.debug("media_server_interval_check: scan skipped (interval logic)")
+            except Exception as e:
+                logger.debug(f"media_server_interval_check: exception running interval scan {e}")
     except Exception as e:
         logger.debug(f"Media server interval check failed: {e}")

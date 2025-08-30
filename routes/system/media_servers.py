@@ -208,3 +208,42 @@ async def trigger_scan_if_queue_empty():
                 redis_client.delete(SCAN_LOCK_KEY)
             except Exception:
                 pass
+
+
+async def trigger_interval_scan():
+    """Trigger scan for interval scheduler.
+
+    Unterschiede zu trigger_scan_if_queue_empty:
+      - Ignoriert triggerOnQueueEmpty Flag.
+      - Respektiert intervalEnabled (geprüft vor Aufruf im celery_task, aber hier Fail-Safe).
+      - Prüft ebenfalls queue_is_empty(), um nicht mitten im Download zu scannen.
+    """
+    ms_cfg = _get_media_server_config()
+    if not ms_cfg.get("intervalEnabled"):
+        logger.debug("trigger_interval_scan: intervalEnabled disabled -> skip")
+        return False
+    if not queue_is_empty():
+        logger.debug("trigger_interval_scan: queue not empty -> skip")
+        return False
+    SCAN_LOCK_KEY = "media_scan:scan_in_progress"
+    try:
+        if not redis_client.set(SCAN_LOCK_KEY, str(time.time()), nx=True, ex=300):
+            logger.debug("trigger_interval_scan: scan lock held -> skip")
+            return False
+    except Exception as e:
+        logger.debug(f"trigger_interval_scan: failed to acquire scan lock ({e}), proceeding anyway")
+        SCAN_LOCK_KEY = None
+    try:
+        await _trigger_jellyfin_scan(ms_cfg)
+        await _trigger_plex_scan(ms_cfg)
+        logger.info("Triggered media server scan via interval (scan lock held)")
+        return True
+    except Exception as e:
+        logger.warning(f"Interval scan trigger failed: {e}")
+        return False
+    finally:
+        if SCAN_LOCK_KEY:
+            try:
+                redis_client.delete(SCAN_LOCK_KEY)
+            except Exception:
+                pass
