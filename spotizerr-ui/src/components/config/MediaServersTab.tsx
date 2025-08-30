@@ -111,11 +111,13 @@ export function MediaServersTab() {
           <label className="text-content-primary dark:text-content-primary-dark" htmlFor="triggerOnQueueEmpty">Trigger When Queue Empty</label>
           <input id="triggerOnQueueEmpty" type="checkbox" {...register("triggerOnQueueEmpty")} className="h-6 w-6" />
         </div>
-        <div className="flex items-center justify-between">
-          <label className="text-content-primary dark:text-content-primary-dark" htmlFor="intervalEnabled">Enable Interval Scan</label>
-          <input id="intervalEnabled" type="checkbox" {...register("intervalEnabled")} className="h-6 w-6" />
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between">
+            <label className="text-content-primary dark:text-content-primary-dark" htmlFor="intervalEnabled">Enable Interval Scan</label>
+            <input id="intervalEnabled" type="checkbox" {...register("intervalEnabled")} className="h-6 w-6" />
+          </div>
+          <p className="text-xs text-content-muted dark:text-content-muted-dark mt-1">Consider using the built-in functions in jellyfin/plex</p>
         </div>
-        <p className="text-xs text-content-muted dark:text-content-muted-dark">Consider using the built-in functions in jellyfin/plex</p>
         <div className="flex flex-col gap-2">
           <label htmlFor="intervalSeconds" className="text-content-primary dark:text-content-primary-dark">Interval (seconds)</label>
           <input
