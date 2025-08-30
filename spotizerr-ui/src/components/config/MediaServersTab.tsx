@@ -116,6 +116,7 @@ export function MediaServersTab() {
             <label className="text-content-primary dark:text-content-primary-dark" htmlFor="intervalEnabled">Enable Interval Scan</label>
             <input id="intervalEnabled" type="checkbox" {...register("intervalEnabled")} className="h-6 w-6" />
           </div>
+          <p className="text-xs text-content-muted dark:text-content-muted-dark mt-1">Only fires, if any change appeared (e.g. new downloads)</p>
           <p className="text-xs text-content-muted dark:text-content-muted-dark mt-1">Consider using the built-in functions in jellyfin/plex</p>
         </div>
         <div className="flex flex-col gap-2">
